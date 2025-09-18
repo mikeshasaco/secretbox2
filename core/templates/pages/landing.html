@@ -1,0 +1,131 @@
+{% extends 'base.html' %}
+{% block title %}SecretBox{% endblock %}
+{% block content %}
+<!-- Hero Section -->
+<div class="bg-gradient-to-r from-nfl-blue via-nfl-red to-nfl-gold py-16">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+    <h1 class="text-4xl md:text-6xl font-bold text-white mb-4">
+      SecretBox
+    </h1>
+    <p class="text-xl text-white/90 mb-8 max-w-2xl mx-auto">
+      Advanced NFL Analytics & Prop Betting Predictions for {{ season }}
+    </p>
+    <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+      <div class="bg-white/10 backdrop-blur-sm rounded-lg px-6 py-3">
+        <label class="text-white text-sm font-medium block mb-2">Select Week</label>
+        <select class="bg-white/20 text-white border border-white/30 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-white/50" onchange="location.href='/week/' + this.value + '/'">
+          {% for w in weeks %}
+            <option value="{{ w }}" {% if w == week %}selected{% endif %} class="text-slate-800">Week {{ w }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% if not user.is_authenticated %}
+        <a href="/signup/" class="bg-white text-nfl-blue px-8 py-3 rounded-lg font-semibold hover:bg-white/90 transition-colors">
+          Get Started
+        </a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Games Section -->
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+  <div class="flex items-center justify-between mb-8">
+    <h2 class="text-3xl font-bold text-slate-800">Week {{ week }} Games</h2>
+    <div class="text-sm text-slate-600">
+      {{ games|length }} games scheduled
+    </div>
+  </div>
+
+  {% if games %}
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      {% for g in games %}
+      <a href="/game/{{ g.game_id }}/" class="group block bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border border-slate-200 overflow-hidden">
+        <div class="p-6">
+          <div class="flex items-center justify-between mb-4">
+            <div class="text-center flex-1">
+              <div class="text-lg font-bold text-slate-800 group-hover:text-nfl-blue transition-colors">{{ g.away_team }}</div>
+              <div class="text-sm text-slate-500">Away</div>
+            </div>
+            <div class="text-slate-400 mx-4">@</div>
+            <div class="text-center flex-1">
+              <div class="text-lg font-bold text-slate-800 group-hover:text-nfl-red transition-colors">{{ g.home_team }}</div>
+              <div class="text-sm text-slate-500">Home</div>
+            </div>
+          </div>
+          <div class="text-center">
+            <div class="text-sm text-slate-600 mb-2">
+              <span class="inline-flex items-center">
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                {{ g.kickoff }}
+              </span>
+            </div>
+            <div class="text-xs text-slate-500">{{ g.gameday }}</div>
+          </div>
+        </div>
+        <div class="bg-gradient-to-r from-slate-50 to-slate-100 px-6 py-3 border-t border-slate-200">
+          <div class="text-xs text-slate-600 text-center group-hover:text-slate-800 transition-colors">
+            View Details & Predictions →
+          </div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="text-center py-12">
+      <div class="w-16 h-16 bg-slate-200 rounded-full flex items-center justify-center mx-auto mb-4">
+        <svg class="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 12h6m-6-4h6m2 5.291A7.962 7.962 0 0112 15c-2.34 0-4.29-1.009-5.824-2.709M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+        </svg>
+      </div>
+      <h3 class="text-lg font-medium text-slate-600 mb-2">No games found</h3>
+      <p class="text-slate-500">No games scheduled for week {{ week }}.</p>
+    </div>
+  {% endif %}
+</div>
+
+<!-- Features Section -->
+<div class="bg-slate-50 py-16">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="text-center mb-12">
+      <h2 class="text-3xl font-bold text-slate-800 mb-4">Why SecretBox?</h2>
+      <p class="text-lg text-slate-600 max-w-2xl mx-auto">
+        Advanced analytics powered by real NFL data and machine learning models
+      </p>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+      <div class="text-center">
+        <div class="w-12 h-12 bg-gradient-to-br from-nfl-blue to-nfl-red rounded-lg flex items-center justify-center mx-auto mb-4">
+          <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+          </svg>
+        </div>
+        <h3 class="text-lg font-semibold text-slate-800 mb-2">Real NFL Data</h3>
+        <p class="text-slate-600">Powered by nflreadpy with live 2025 season data</p>
+      </div>
+      <div class="text-center">
+        <div class="w-12 h-12 bg-gradient-to-br from-nfl-blue to-nfl-red rounded-lg flex items-center justify-center mx-auto mb-4">
+          <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+          </svg>
+        </div>
+        <h3 class="text-lg font-semibold text-slate-800 mb-2">ML Predictions</h3>
+        <p class="text-slate-600">Advanced models for prop betting and game outcomes</p>
+      </div>
+      <div class="text-center">
+        <div class="w-12 h-12 bg-gradient-to-br from-nfl-blue to-nfl-red rounded-lg flex items-center justify-center mx-auto mb-4">
+          <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+        </div>
+        <h3 class="text-lg font-semibold text-slate-800 mb-2">Confidence Scores</h3>
+        <p class="text-slate-600">Get confidence levels and rationale for every prediction</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+

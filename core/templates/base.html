@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}SecretBox{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              'nfl-blue': '#013369',
+              'nfl-red': '#D50A0A',
+              'nfl-gold': '#FFB612'
+            }
+          }
+        }
+      }
+    </script>
+  </head>
+  <body class="bg-gradient-to-br from-slate-50 to-slate-100 min-h-screen text-slate-800">
+    <nav class="bg-white/90 backdrop-blur-sm shadow-lg border-b border-slate-200 sticky top-0 z-50">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between items-center h-16">
+          <a href="/" class="flex items-center space-x-2 group">
+            <div class="w-8 h-8 bg-gradient-to-br from-nfl-blue to-nfl-red rounded-lg flex items-center justify-center">
+              <span class="text-white font-bold text-sm">SB</span>
+            </div>
+            <span class="font-bold text-xl text-slate-800 group-hover:text-nfl-blue transition-colors">SecretBox</span>
+          </a>
+          <div class="flex items-center space-x-4">
+            {% if user.is_authenticated %}
+              <div class="flex items-center space-x-3">
+                <div class="w-8 h-8 bg-gradient-to-br from-nfl-blue to-nfl-red rounded-full flex items-center justify-center">
+                  <span class="text-white text-sm font-medium">{{ user.username|first|upper }}</span>
+                </div>
+                <span class="text-sm text-slate-600">Welcome, {{ user.username }}</span>
+                <a href="/logout/" class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-nfl-red transition-colors">Logout</a>
+              </div>
+            {% else %}
+              <div class="flex items-center space-x-3">
+                <a href="/login/" class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-nfl-blue transition-colors">Login</a>
+                <a href="/signup/" class="px-4 py-2 bg-gradient-to-r from-nfl-blue to-nfl-red text-white text-sm font-medium rounded-lg hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200">Sign up</a>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </nav>
+    <main class="min-h-screen">
+      {% block content %}{% endblock %}
+    </main>
+    <footer class="bg-slate-800 text-white py-8 mt-16">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+        <p class="text-slate-400">&copy; 2025 SecretBox. Built with Django & nflreadpy.</p>
+      </div>
+    </footer>
+  </body>
+  </html>
+
+

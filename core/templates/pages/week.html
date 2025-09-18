@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+{% load nfl_extras %}
+{% block title %}Week {{ week }} · SecretBox{% endblock %}
+{% block content %}
+<!-- Header Section -->
+<div class="bg-gradient-to-r from-nfl-blue via-nfl-red to-nfl-gold py-12">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="flex flex-col sm:flex-row items-center justify-between">
+      <div class="text-center sm:text-left mb-4 sm:mb-0">
+        <h1 class="text-3xl md:text-4xl font-bold text-white mb-2">
+          Week {{ week }} — Season {{ season }}
+        </h1>
+        <p class="text-white/90">NFL Games & Player Analytics</p>
+      </div>
+      <div class="bg-white/10 backdrop-blur-sm rounded-lg px-6 py-3">
+        <label class="text-white text-sm font-medium block mb-2">Select Week</label>
+        <select class="bg-white/20 text-white border border-white/30 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-white/50" onchange="location.href='/week/' + this.value + '/'">
+          {% for w in weeks %}
+            <option value="{{ w }}" {% if w == week %}selected{% endif %} class="text-slate-800">Week {{ w }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Games Section -->
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+    {% for g in games %}
+    <a href="/game/{{ g.game_id }}/" class="group block bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border border-slate-200 overflow-hidden">
+      <div class="p-6">
+        <div class="flex items-center justify-between mb-4">
+          <div class="text-center flex-1">
+            <div class="text-lg font-bold text-slate-800 group-hover:text-nfl-blue transition-colors">{{ g.away_team }}</div>
+            <div class="text-sm text-slate-500">Away</div>
+          </div>
+          <div class="text-slate-400 mx-4">@</div>
+          <div class="text-center flex-1">
+            <div class="text-lg font-bold text-slate-800 group-hover:text-nfl-red transition-colors">{{ g.home_team }}</div>
+            <div class="text-sm text-slate-500">Home</div>
+          </div>
+        </div>
+        <div class="text-center mb-4">
+          <div class="text-sm text-slate-600 mb-2">
+            <span class="inline-flex items-center">
+              <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              {{ g.kickoff }}
+            </span>
+          </div>
+          <div class="text-xs text-slate-500">{{ g.gameday }}</div>
+        </div>
+        
+        <!-- Starting QBs -->
+        <div class="border-t border-slate-100 pt-4">
+          <div class="text-sm font-medium text-slate-700 mb-2">Starting QBs:</div>
+          <div class="space-y-1">
+            {% for qb in qb_df %}
+              {% if qb.team == g.away_team or qb.team == g.home_team %}
+                <div class="text-xs text-slate-600 bg-slate-50 rounded px-2 py-1">
+                  <span class="font-medium">{{ qb.player_display_name }}</span>
+                  <span class="text-slate-500">({{ qb.team }})</span>
+                  {% with prev=qb_prev|lookup:qb.player_id %}
+                    {% if prev %}
+                      <div class="text-slate-500 mt-1">
+                        Last: {{ prev.cmp }}/{{ prev.att }} {{ prev.yds }}yd {{ prev.td }}TD {{ prev.int }}INT
+                      </div>
+                    {% endif %}
+                  {% endwith %}
+                </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      <div class="bg-gradient-to-r from-slate-50 to-slate-100 px-6 py-3 border-t border-slate-200">
+        <div class="text-xs text-slate-600 text-center group-hover:text-slate-800 transition-colors">
+          View Details & Predictions →
+        </div>
+      </div>
+    </a>
+    {% empty %}
+    <div class="col-span-full text-center py-12">
+      <div class="w-16 h-16 bg-slate-200 rounded-full flex items-center justify-center mx-auto mb-4">
+        <svg class="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 12h6m-6-4h6m2 5.291A7.962 7.962 0 0112 15c-2.34 0-4.29-1.009-5.824-2.709M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+        </svg>
+      </div>
+      <h3 class="text-lg font-medium text-slate-600 mb-2">No games found</h3>
+      <p class="text-slate-500">No games scheduled for week {{ week }}.</p>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
+
+

@@ -1,0 +1,9 @@
+Django==5.0.8
+pandas==2.2.2
+numpy==1.26.4
+scikit-learn==1.4.2
+joblib==1.4.2
+nflreadpy==0.1.0
+polars==1.0.0
+python-dateutil==2.9.0
+pytz==2024.1
