@@ -3,11 +3,13 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any
 
 import pandas as pd
 import polars as pl
+import pytz
 from django.conf import settings
 
 
@@ -96,15 +98,28 @@ def game_id_map(schedule: Optional[pd.DataFrame] = None) -> Dict[str, Dict[str, 
     if schedule is None:
         schedule = load_schedule_2025()
     out: Dict[str, Dict[str, Any]] = {}
+    # Build timezone-aware kickoff and convert to UTC ISO string
+    import pandas as pd
+    import pytz as _pytz
+    et = _pytz.timezone("America/New_York")
     for _, r in schedule.iterrows():
         gid = str(r.get('game_id') or f"{r['season']}_{r['week']}_{r['home_team']}")
+        kickoff_iso = None
+        try:
+            if pd.notna(r.get('gameday')) and pd.notna(r.get('gametime')):
+                dt_local = pd.to_datetime(str(r['gameday']) + " " + str(r['gametime']))
+                if dt_local.tzinfo is None:
+                    dt_local = et.localize(dt_local)
+                kickoff_iso = dt_local.tz_convert('UTC').isoformat()
+        except Exception:
+            kickoff_iso = None
         out[gid] = {
             'game_id': gid,
             'week': int(r['week']),
             'home_team': r['home_team'],
             'away_team': r['away_team'],
             'gameday': r.get('gameday'),
-            'kickoff': r.get('gametime') or None,
+            'kickoff': kickoff_iso,
         }
     return out
 
@@ -144,6 +159,43 @@ def previous_week_qb_line(week: int, player_id: str) -> Optional[Dict[str, Any]]
         'td': td,
         'int': inter,
     }
+
+
+def get_current_week(season: int, now: datetime | None = None) -> int:
+    """
+    Determine current NFL week strictly from schedule timing/status.
+    Uses nfl_data_py.import_schedules and picks the week whose games
+    bracket 'now' (America/Chicago). No hardcoded week, no mock.
+    """
+    cst = pytz.timezone("America/Chicago")
+    now = now.astimezone(cst) if now else datetime.now(cst)
+
+    sch = load_schedule_2025()
+    # Normalize times - convert to CST
+    sch["game_datetime"] = pd.to_datetime(sch["gameday"].astype(str) + " " + sch["gametime"]).dt.tz_localize("America/New_York", nonexistent="shift_forward", ambiguous="NaT").dt.tz_convert(cst)
+
+    # Pick week where median start is within [-3d, +3d] of 'now' OR the next upcoming week if nothing active
+    by_week = sch.groupby("week")["game_datetime"].agg(["min", "max", "median"]).reset_index()
+    active = by_week[(by_week["min"] <= now + pd.Timedelta(days=1)) & (by_week["max"] >= now - pd.Timedelta(days=3))]
+    if not active.empty:
+        # If multiple weeks are active, prefer the one with games starting today or later
+        # A week is "current" if it has games starting today or in the future
+        current_week = active[active["min"] >= now - pd.Timedelta(hours=6)]
+        if not current_week.empty:
+            return int(current_week.sort_values("median").iloc[0]["week"])
+        # Otherwise, use the latest active week
+        return int(active.sort_values("week", ascending=False).iloc[0]["week"])
+    upcoming = by_week[by_week["min"] > now].sort_values("min")
+    return int(upcoming.iloc[0]["week"]) if not upcoming.empty else int(by_week["week"].max())
+
+
+def get_current_week_games(season: int, week: int) -> pd.DataFrame:
+    """Get games for a specific week and build canonical game_id format: YYYY_WW_AWAY_HOME"""
+    sch = load_schedule_2025()
+    df = sch[sch["week"] == week].copy()
+    # Build your canonical game_id format: YYYY_WW_AWAY_HOME
+    df["game_id_sb"] = df.apply(lambda r: f"{season:04d}_{int(week):02d}_{r['away_team']}_{r['home_team']}", axis=1)
+    return df[["game_id", "game_id_sb", "week", "home_team", "away_team", "game_type"]]
 
 
 def refresh_week_cache(week: int) -> None:

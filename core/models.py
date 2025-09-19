@@ -192,3 +192,76 @@ class CachedData(models.Model):
     class Meta:
         unique_together = ['data_type', 'season', 'week']
         ordering = ['-created_at']
+
+
+class PropLine(models.Model):
+    """PrizePicks prop lines for current week games"""
+    season = models.IntegerField(validators=[MinValueValidator(2025), MaxValueValidator(2025)])
+    week = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(18)])
+    game_id = models.CharField(max_length=20)
+    player_id = models.CharField(max_length=20)
+    player_name = models.CharField(max_length=100)
+    team = models.CharField(max_length=10)
+    opp = models.CharField(max_length=10)  # opponent team
+    prop_type = models.CharField(max_length=30)  # passing_yards, rushing_yards, etc.
+    line_value = models.FloatField()
+    book = models.CharField(max_length=20, default='PrizePicks')
+    board_time = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"{self.player_name} {self.prop_type} {self.line_value} vs {self.opp}"
+    
+    class Meta:
+        ordering = ['-board_time', 'player_name']
+        indexes = [
+            models.Index(fields=['season', 'week', 'prop_type', 'team', 'opp']),
+            models.Index(fields=['game_id', 'player_id']),
+        ]
+
+
+class OddsEventMap(models.Model):
+    """Mapping from our internal game_id -> The Odds API event id.
+    Used to avoid repeated resolution on each request.
+    """
+    game_id = models.CharField(max_length=32, unique=True)
+    odds_event_id = models.CharField(max_length=64)
+    last_checked_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.game_id} → {self.odds_event_id}"
+
+    class Meta:
+        ordering = ['-last_checked_at']
+
+
+class PropProjection(models.Model):
+    """ML model projections for props"""
+    prop_line = models.ForeignKey(PropLine, on_delete=models.CASCADE, related_name='projections')
+    season = models.IntegerField(validators=[MinValueValidator(2025), MaxValueValidator(2025)])
+    week = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(18)])
+    game_id = models.CharField(max_length=20)
+    player_id = models.CharField(max_length=20)
+    prop_type = models.CharField(max_length=30)
+    
+    # Projection statistics
+    mean = models.FloatField()  # Expected value
+    p10 = models.FloatField()   # 10th percentile
+    p50 = models.FloatField()   # 50th percentile (median)
+    p90 = models.FloatField()   # 90th percentile
+    
+    # Betting probabilities
+    win_prob_over = models.FloatField()  # Probability of going over the line
+    edge_pct = models.FloatField()       # Edge percentage (positive = good bet)
+    
+    # Model metadata
+    model_version = models.CharField(max_length=20, default='v1')
+    features_json = models.JSONField(default=dict)  # Features used for prediction
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"{self.prop_line.player_name} {self.prop_type} - Mean: {self.mean:.1f}"
+    
+    class Meta:
+        ordering = ['-created_at']
+        unique_together = ['prop_line', 'model_version']

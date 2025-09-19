@@ -1,0 +1,137 @@
+"""
+Props controller for PrizePicks parlay functionality.
+Handles parlay context and evaluation for current-week games only.
+"""
+import json
+from django.http import JsonResponse, HttpResponse
+from django.conf import settings
+from services.nfl import get_current_week, get_current_week_games
+from services import nfl
+from services.odds_provider import (
+    fetch_prizepicks_props_for_games,
+    resolve_odds_event_id,
+    fetch_event_player_props,
+    parse_props_response,
+)
+from core.models import OddsEventMap
+from django.views.decorators.http import require_GET
+from django.utils import timezone
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+def get_parlay_context(season: int, game_id_sb: str):
+    """
+    Get parlay context for a specific game.
+    Only returns data for current-week games.
+    """
+    wk = get_current_week(season)
+    games = get_current_week_games(season, wk)
+    
+    if game_id_sb not in set(games["game_id_sb"]):
+        return {"enabled": False, "reason": "not_current_week"}
+
+    rows = fetch_prizepicks_props_for_games(season, wk, games["game_id_sb"].tolist())
+    props_for_game = [r for r in rows if r["game_id_sb"] == game_id_sb]
+    
+    if not rows:
+        return {"enabled": True, "available": False, "props": [], "week": wk}  # API unavailable or empty
+    
+    return {"enabled": True, "available": True, "props": props_for_game, "week": wk}
+
+
+def evaluate_parlay(request):
+    """
+    POST {game_id, mode: "power"|"flex", legs:[{player_id, prop_type, line, side}]}
+    Uses existing projection engine for win prob per leg.
+    """
+    try:
+        body = json.loads(request.body.decode("utf-8"))
+        season = int(settings.NFL_SEASON)
+        game_id_sb = body["game_id"]
+        mode = body.get("mode", "power")
+        legs = body["legs"]
+
+        # For now, return a simple response since we don't have the full ML pipeline
+        # In a real implementation, this would use the projection engine
+        win_prob = 0.5  # Placeholder - would be calculated from ML model
+        ev = 0.0  # Placeholder - would be calculated from win prob and payout structure
+        
+        detail = []
+        for leg in legs:
+            detail.append({
+                **leg, 
+                "win_prob": round(win_prob, 3)
+            })
+
+        return JsonResponse({
+            "legs": detail, 
+            "win_prob": round(win_prob, 3), 
+            "ev": round(ev, 3)
+        })
+        
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+
+@require_GET
+def game_props(request, game_id: str):
+    """GET /game/<game_id>/props
+    Resolves Odds API event id, fetches PrizePicks player props for requested markets,
+    and returns flattened structure. 0 mock; returns 204 if PrizePicks not present,
+    or 404 if event cannot be resolved.
+    """
+    markets_csv = request.GET.get('markets', 'player_pass_yds')
+    # deny-list apiKey param in inbound
+    if 'apiKey' in request.GET:
+        return JsonResponse({"error": "apiKey_not_allowed"}, status=400)
+
+    # Build internal game from nfl service
+    schedule = nfl.load_schedule_2025()
+    games_map = nfl.game_id_map(schedule)
+    game = games_map.get(game_id)
+    if not game:
+        return JsonResponse({"error": "game_not_found"}, status=404)
+
+    resolved = None
+    odds_map = OddsEventMap.objects.filter(game_id=game_id).first()
+    if odds_map:
+        resolved = odds_map.odds_event_id
+
+    if not resolved:
+        try:
+            event_id, ev_json = resolve_odds_event_id(game)
+            resolved = event_id
+            if odds_map:
+                odds_map.odds_event_id = event_id
+                odds_map.save(update_fields=["odds_event_id", "last_checked_at"])
+            else:
+                OddsEventMap.objects.create(game_id=game_id, odds_event_id=event_id)
+        except Exception as e:
+            logger.info("props_resolve_failed", extra={"game_id": game_id})
+            return JsonResponse({"error": "odds_event_not_found"}, status=404)
+
+    try:
+        event_payload = fetch_event_player_props(resolved, markets_csv)
+    except Exception as e:
+        logger.info("props_fetch_failed", extra={"game_id": game_id})
+        return JsonResponse({"error": "fetch_failed"}, status=502)
+
+    markets = parse_props_response(event_payload, markets_csv)
+    if not markets:
+        return JsonResponse({
+            "game_id": game_id,
+            "markets": markets_csv,
+            "note": "prizepicks_unavailable",
+        }, status=204)
+
+    resp = {
+        "game_id": game_id,
+        "odds_event_id": resolved,
+        "home_team": game.get('home_team'),
+        "away_team": game.get('away_team'),
+        "kickoff_utc": game.get('kickoff'),
+        "markets": markets,
+    }
+    return JsonResponse(resp)

@@ -13,6 +13,216 @@
   </div>
 </div>
 
+{% if parlayPanel.enabled %}
+  <section id="pp-parlay" class="mt-6 bg-white p-4 rounded shadow">
+    <h2 class="text-xl font-semibold mb-4">PrizePicks Parlay — Week {{ parlayPanel.week }}</h2>
+
+    {% if not parlayPanel.available %}
+      <div class="text-sm text-gray-500">PrizePicks props are currently unavailable from the odds provider.</div>
+    {% else %}
+      <form id="parlay-form">
+        <div class="grid md:grid-cols-2 gap-3 mb-4">
+          {% for p in parlayPanel.props %}
+            <label class="flex items-center gap-2 border p-2 rounded hover:bg-gray-50 cursor-pointer">
+              <input type="checkbox" name="legs" value="{{ p.player_id }}|{{ p.prop_type }}|{{ p.line_value }}|over" class="rounded">
+              <span class="text-sm">{{ p.player_name }} — {{ p.prop_type }}: {{ p.line_value }}</span>
+            </label>
+          {% endfor %}
+        </div>
+
+        <div class="mt-3 flex items-center gap-3">
+          <select id="mode" class="border rounded px-2 py-1">
+            <option value="power">Power</option>
+            <option value="flex">Flex</option>
+          </select>
+          <button type="button" id="calc-ev" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Calculate EV</button>
+          <div id="ev-out" class="text-sm font-medium"></div>
+        </div>
+      </form>
+      <script>
+        document.getElementById("calc-ev").onclick = async () => {
+          const legs = [...document.querySelectorAll('input[name="legs"]:checked')].map(s=>{
+            const [player_id, prop_type, line, side] = s.value.split("|");
+            return {player_id, prop_type, line: parseFloat(line), side};
+          });
+          
+          if (legs.length < 2) {
+            document.getElementById("ev-out").innerText = "Please select at least 2 legs";
+            return;
+          }
+          
+          try {
+            const res = await fetch("/parlay/evaluate", {
+              method:"POST",
+              headers:{"Content-Type":"application/json"},
+              body: JSON.stringify({game_id: "{{ game.game_id }}", mode: document.getElementById('mode').value, legs})
+            }).then(r=>r.json());
+            
+            if (res.error) {
+              document.getElementById("ev-out").innerText = "Error: " + res.error;
+            } else {
+              document.getElementById("ev-out").innerText = `Win Prob: ${res.win_prob}  |  EV: ${res.ev}`;
+            }
+          } catch (error) {
+            document.getElementById("ev-out").innerText = "Error calculating EV";
+          }
+        };
+      </script>
+    {% endif %}
+  </section>
+{% endif %}
+
+<section class="mt-6 bg-white p-4 rounded shadow" id="props-panel">
+  <div class="flex items-center justify-between mb-3">
+    <h2 class="text-xl font-semibold">PrizePicks Player Props</h2>
+    <div class="flex items-center gap-2 text-sm">
+      <label for="pp-markets">Markets</label>
+      <select id="pp-markets" class="border rounded px-2 py-1">
+        <option value="all">All Available</option>
+        <option value="passing">Passing Stats</option>
+        <option value="rushing">Rushing Stats</option>
+        <option value="receiving">Receiving Stats</option>
+        <option value="defensive">Defensive Stats</option>
+        <option value="kicking">Kicking Stats</option>
+        <option value="touchdowns">Touchdowns</option>
+        <option value="custom">Custom...</option>
+      </select>
+      <input id="pp-custom-markets" class="border rounded px-2 py-1" placeholder="player_pass_yds,player_rush_yds" style="display:none;" />
+      <button id="pp-load" class="bg-slate-700 text-white px-3 py-1 rounded hover:bg-slate-800">Load</button>
+    </div>
+  </div>
+  <div id="pp-status" class="text-sm text-slate-600">Loading...</div>
+  <div class="overflow-x-auto mt-3">
+    <table class="min-w-full text-sm" id="pp-table" style="display:none;">
+      <thead>
+        <tr class="text-left border-b">
+          <th class="py-2 pr-4">Player</th>
+          <th class="py-2 pr-4">Over (odds/line)</th>
+          <th class="py-2 pr-4">Under (odds/line)</th>
+          <th class="py-2 pr-4">Market</th>
+          <th class="py-2 pr-4">Last Update</th>
+        </tr>
+      </thead>
+      <tbody id="pp-tbody"></tbody>
+    </table>
+  </div>
+  <script>
+    (function(){
+      const statusEl = document.getElementById('pp-status');
+      const tableEl = document.getElementById('pp-table');
+      const tbodyEl = document.getElementById('pp-tbody');
+      const marketsSelect = document.getElementById('pp-markets');
+      const customInput = document.getElementById('pp-custom-markets');
+      const loadBtn = document.getElementById('pp-load');
+
+      // Market categories
+      const marketCategories = {
+        'all': 'player_pass_yds,player_pass_tds,player_pass_attempts,player_pass_completions,player_pass_interceptions,player_pass_longest_completion,player_pass_rush_yds,player_pass_rush_reception_tds,player_pass_rush_reception_yds,player_pass_yds_q1,player_receptions,player_reception_longest,player_reception_tds,player_reception_yds,player_rush_attempts,player_rush_longest,player_rush_reception_tds,player_rush_reception_yds,player_rush_tds,player_rush_yds,player_sacks,player_solo_tackles,player_tackles_assists,player_tds_over,player_1st_td,player_anytime_td,player_last_td,player_assists,player_defensive_interceptions,player_field_goals,player_kicking_points,player_pats',
+        'passing': 'player_pass_yds,player_pass_tds,player_pass_attempts,player_pass_completions,player_pass_interceptions,player_pass_longest_completion,player_pass_yds_q1',
+        'rushing': 'player_rush_yds,player_rush_tds,player_rush_attempts,player_rush_longest',
+        'receiving': 'player_receptions,player_reception_yds,player_reception_tds,player_reception_longest',
+        'defensive': 'player_sacks,player_solo_tackles,player_tackles_assists,player_defensive_interceptions',
+        'kicking': 'player_field_goals,player_kicking_points,player_pats',
+        'touchdowns': 'player_tds_over,player_1st_td,player_anytime_td,player_last_td,player_pass_rush_reception_tds,player_rush_reception_tds'
+      };
+
+      // Show/hide custom input
+      marketsSelect.addEventListener('change', function() {
+        if (this.value === 'custom') {
+          customInput.style.display = 'inline-block';
+          customInput.focus();
+        } else {
+          customInput.style.display = 'none';
+        }
+      });
+
+      async function loadProps() {
+        statusEl.textContent = 'Loading...';
+        tableEl.style.display = 'none';
+        tbodyEl.innerHTML = '';
+        
+        let markets;
+        if (marketsSelect.value === 'custom') {
+          markets = customInput.value.trim() || 'player_pass_yds';
+        } else {
+          markets = marketCategories[marketsSelect.value] || 'player_pass_yds';
+        }
+
+        try {
+          const res = await fetch(`/game/{{ game.game_id }}/props?markets=${encodeURIComponent(markets)}`);
+          if (res.status === 204) {
+            statusEl.textContent = 'PrizePicks not available for this game yet.';
+            return;
+          }
+          if (!res.ok) {
+            const msg = await res.text();
+            statusEl.textContent = `Error loading props (${res.status})`;
+            return;
+          }
+          const data = await res.json();
+          
+          // Group by market for better organization
+          const marketGroups = {};
+          for (const m of (data.markets || [])) {
+            if (!marketGroups[m.key]) {
+              marketGroups[m.key] = {
+                key: m.key,
+                last_update: m.last_update,
+                lines: []
+              };
+            }
+            marketGroups[m.key].lines.push(...(m.lines || []));
+          }
+
+          if (Object.keys(marketGroups).length === 0) {
+            statusEl.textContent = 'No player props available for this game.';
+            return;
+          }
+
+          // Build table with market grouping
+          const frag = document.createDocumentFragment();
+          
+          // Add market headers and rows
+          Object.values(marketGroups).forEach(market => {
+            // Market header
+            const headerTr = document.createElement('tr');
+            headerTr.className = 'bg-gray-100 font-semibold';
+            headerTr.innerHTML = `
+              <td colspan="5" class="py-2 px-4">${market.key.replace('player_', '').replace(/_/g, ' ').toUpperCase()}</td>
+            `;
+            frag.appendChild(headerTr);
+            
+            // Player lines for this market
+            market.lines.forEach(line => {
+              const over = line.over ? `${line.over.odds ?? ''}/${line.over.point ?? ''}` : '';
+              const under = line.under ? `${line.under.odds ?? ''}/${line.under.point ?? ''}` : '';
+              const tr = document.createElement('tr');
+              tr.className = 'border-b hover:bg-gray-50';
+              tr.innerHTML = `
+                <td class="py-2 pr-4 pl-6">${line.player || ''}</td>
+                <td class="py-2 pr-4">${over}</td>
+                <td class="py-2 pr-4">${under}</td>
+                <td class="py-2 pr-4">${market.last_update || ''}</td>
+                <td class="py-2 pr-4"></td>
+              `;
+              frag.appendChild(tr);
+            });
+          });
+
+          tbodyEl.appendChild(frag);
+          statusEl.textContent = `Loaded ${Object.keys(marketGroups).length} markets with ${Object.values(marketGroups).reduce((sum, m) => sum + m.lines.length, 0)} player lines`;
+          tableEl.style.display = '';
+        } catch (e) {
+          statusEl.textContent = 'Network error loading props';
+        }
+      }
+
+      loadBtn.addEventListener('click', loadProps);
+      // auto-load all markets on page open
+      loadProps();
+    })();
+  </script>
+</section>
 <div class="mt-6 bg-white p-4 rounded shadow">
   <h3 class="font-medium">Compare</h3>
   <p class="text-sm text-slate-600">Model line vs user line will render here.</p>

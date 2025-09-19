@@ -11,9 +11,14 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+import os
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load environment variables from .env at project root
+load_dotenv(BASE_DIR / '.env')
 
 
 # Quick-start development settings - unsuitable for production
@@ -25,7 +30,7 @@ SECRET_KEY = 'django-insecure-m&8%d)@r0j00g@h54cbi)ixq9yw*s+jggk28pn^r6u+wl&*pbq
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1", "[::1]"]
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", "[::1]", "testserver"]
 
 
 # Application definition
@@ -129,6 +134,13 @@ USE_DB_CACHE = True
 NFL_SEASON = 2025
 CACHE_DIR = BASE_DIR / 'cache'
 MODELS_DIR = BASE_DIR / 'models'
+
+# Odds API Configuration
+ODDS_API_ENABLED = True
+ODDS_API_BASE_URL = 'https://api.the-odds-api.com/v4'
+ODDS_API_KEY = os.getenv('ODDS_API_KEY', '')
+ODDS_API_BOOK = 'prizepicks'  # Provider-specific filter (if supported)
+CURRENT_WEEK = 3  # Current NFL week for parlay panel
 
 # Login/Logout URLs
 LOGIN_URL = '/login/'
