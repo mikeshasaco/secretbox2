@@ -240,3 +240,9 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ---
 
 **SecretBox** - Where NFL analytics meets machine learning. Built with ❤️ for football fans and data enthusiasts.
+
+------
+
+command to refresh the lines
+
+python3 manage.py refresh_player_props

@@ -235,6 +235,81 @@ class OddsEventMap(models.Model):
         ordering = ['-last_checked_at']
 
 
+class OddsEvent(models.Model):
+    """Stores Odds API event data for games with player props"""
+    event_id = models.CharField(max_length=64, unique=True)
+    game_id = models.CharField(max_length=32)  # Our internal game ID
+    home_team = models.CharField(max_length=50)
+    away_team = models.CharField(max_length=50)
+    commence_time = models.DateTimeField()
+    last_updated = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField(default=True)
+    
+    def __str__(self):
+        return f"{self.away_team} @ {self.home_team} ({self.event_id})"
+    
+    class Meta:
+        ordering = ['-commence_time']
+
+
+class PlayerProp(models.Model):
+    """Individual player prop lines from PrizePicks"""
+    event = models.ForeignKey(OddsEvent, on_delete=models.CASCADE, related_name='props')
+    player_name = models.CharField(max_length=100)
+    market_key = models.CharField(max_length=50)  # e.g., 'player_pass_yds'
+    market_display = models.CharField(max_length=100)  # e.g., 'Pass Yards'
+    
+    # Over/Under lines
+    over_odds = models.IntegerField(null=True, blank=True)  # American odds format
+    over_point = models.FloatField(null=True, blank=True)
+    under_odds = models.IntegerField(null=True, blank=True)
+    under_point = models.FloatField(null=True, blank=True)
+    
+    # Metadata
+    last_updated = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField(default=True)
+    
+    def __str__(self):
+        return f"{self.player_name} {self.market_display} O{self.over_point}/U{self.under_point}"
+    
+    class Meta:
+        ordering = ['market_key', 'player_name']
+        unique_together = ['event', 'player_name', 'market_key']
+
+
+class PropLineHistory(models.Model):
+    """Tracks line changes over time for analysis"""
+    prop = models.ForeignKey(PlayerProp, on_delete=models.CASCADE, related_name='line_history')
+    over_odds = models.IntegerField(null=True, blank=True)
+    over_point = models.FloatField(null=True, blank=True)
+    under_odds = models.IntegerField(null=True, blank=True)
+    under_point = models.FloatField(null=True, blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"{self.prop.player_name} {self.timestamp.strftime('%m/%d %H:%M')}"
+    
+    class Meta:
+        ordering = ['-timestamp']
+
+
+class DataRefreshLog(models.Model):
+    """Logs when we refresh data from the API"""
+    event = models.ForeignKey(OddsEvent, on_delete=models.CASCADE, related_name='refresh_logs')
+    markets_requested = models.TextField()  # Comma-separated list
+    markets_found = models.IntegerField(default=0)
+    total_lines = models.IntegerField(default=0)
+    api_status = models.CharField(max_length=20)  # 'success', 'partial', 'failed'
+    error_message = models.TextField(blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"{self.event} - {self.timestamp.strftime('%m/%d %H:%M')} ({self.api_status})"
+    
+    class Meta:
+        ordering = ['-timestamp']
+
+
 class PropProjection(models.Model):
     """ML model projections for props"""
     prop_line = models.ForeignKey(PropLine, on_delete=models.CASCADE, related_name='projections')

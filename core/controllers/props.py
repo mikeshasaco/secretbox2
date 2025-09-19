@@ -78,9 +78,8 @@ def evaluate_parlay(request):
 @require_GET
 def game_props(request, game_id: str):
     """GET /game/<game_id>/props
-    Resolves Odds API event id, fetches PrizePicks player props for requested markets,
-    and returns flattened structure. 0 mock; returns 204 if PrizePicks not present,
-    or 404 if event cannot be resolved.
+    Returns player props from database first, falls back to API if needed.
+    Returns 204 if no data available, 404 if game not found.
     """
     markets_csv = request.GET.get('markets', 'player_pass_yds')
     # deny-list apiKey param in inbound
@@ -94,44 +93,136 @@ def game_props(request, game_id: str):
     if not game:
         return JsonResponse({"error": "game_not_found"}, status=404)
 
-    resolved = None
-    odds_map = OddsEventMap.objects.filter(game_id=game_id).first()
-    if odds_map:
-        resolved = odds_map.odds_event_id
-
-    if not resolved:
-        try:
-            event_id, ev_json = resolve_odds_event_id(game)
-            resolved = event_id
-            if odds_map:
-                odds_map.odds_event_id = event_id
-                odds_map.save(update_fields=["odds_event_id", "last_checked_at"])
-            else:
-                OddsEventMap.objects.create(game_id=game_id, odds_event_id=event_id)
-        except Exception as e:
-            logger.info("props_resolve_failed", extra={"game_id": game_id})
-            return JsonResponse({"error": "odds_event_not_found"}, status=404)
-
+    # Try to get data from database first
     try:
-        event_payload = fetch_event_player_props(resolved, markets_csv)
-    except Exception as e:
-        logger.info("props_fetch_failed", extra={"game_id": game_id})
-        return JsonResponse({"error": "fetch_failed"}, status=502)
-
-    markets = parse_props_response(event_payload, markets_csv)
-    if not markets:
-        return JsonResponse({
+        from core.models import OddsEvent, PlayerProp
+        from django.utils import timezone
+        
+        # Get the event for this game
+        event = OddsEvent.objects.filter(game_id=game_id, is_active=True).first()
+        if not event:
+            # Try to resolve and create event
+            try:
+                event_id, ev_json = resolve_odds_event_id(game)
+                event = OddsEvent.objects.create(
+                    event_id=event_id,
+                    game_id=game_id,
+                    home_team=game['home_team'],
+                    away_team=game['away_team'],
+                    commence_time=game['kickoff']
+                )
+            except Exception as e:
+                logger.info("props_resolve_failed", extra={"game_id": game_id})
+                return JsonResponse({"error": "odds_event_not_found"}, status=404)
+        
+        # Get requested markets
+        requested_markets = [m.strip() for m in markets_csv.split(',') if m.strip()]
+        
+        # Query props from database
+        props = PlayerProp.objects.filter(
+            event=event,
+            market_key__in=requested_markets,
+            is_active=True
+        ).order_by('market_key', 'player_name')
+        
+        if not props.exists():
+            # No data in database, try API as fallback
+            return fetch_from_api_fallback(game_id, game, markets_csv)
+        
+        # Group props by market
+        market_groups = {}
+        for prop in props:
+            if prop.market_key not in market_groups:
+                market_groups[prop.market_key] = {
+                    'key': prop.market_key,
+                    'last_update': prop.last_updated.isoformat() if prop.last_updated else None,
+                    'lines': []
+                }
+            
+            # Build line data
+            line = {
+                'player': prop.player_name,
+                'over': {
+                    'odds': prop.over_odds,
+                    'point': prop.over_point
+                } if prop.over_odds is not None and prop.over_point is not None else None,
+                'under': {
+                    'odds': prop.under_odds,
+                    'point': prop.under_point
+                } if prop.under_odds is not None and prop.under_point is not None else None
+            }
+            market_groups[prop.market_key]['lines'].append(line)
+        
+        markets = list(market_groups.values())
+        if not markets:
+            return JsonResponse({
+                "game_id": game_id,
+                "markets": markets_csv,
+                "note": "prizepicks_unavailable",
+            }, status=204)
+        
+        resp = {
             "game_id": game_id,
-            "markets": markets_csv,
-            "note": "prizepicks_unavailable",
-        }, status=204)
+            "odds_event_id": event.event_id,
+            "home_team": game.get('home_team'),
+            "away_team": game.get('away_team'),
+            "kickoff_utc": game.get('kickoff'),
+            "markets": markets,
+            "source": "database"
+        }
+        return JsonResponse(resp)
+        
+    except Exception as e:
+        logger.error(f"Database query failed for {game_id}: {e}")
+        # Fall back to API
+        return fetch_from_api_fallback(game_id, game, markets_csv)
 
-    resp = {
-        "game_id": game_id,
-        "odds_event_id": resolved,
-        "home_team": game.get('home_team'),
-        "away_team": game.get('away_team'),
-        "kickoff_utc": game.get('kickoff'),
-        "markets": markets,
-    }
-    return JsonResponse(resp)
+
+def fetch_from_api_fallback(game_id: str, game: dict, markets_csv: str):
+    """Fallback to API when database doesn't have data"""
+    try:
+        resolved = None
+        odds_map = OddsEventMap.objects.filter(game_id=game_id).first()
+        if odds_map:
+            resolved = odds_map.odds_event_id
+
+        if not resolved:
+            try:
+                event_id, ev_json = resolve_odds_event_id(game)
+                resolved = event_id
+                if odds_map:
+                    odds_map.odds_event_id = event_id
+                    odds_map.save(update_fields=["odds_event_id", "last_checked_at"])
+                else:
+                    OddsEventMap.objects.create(game_id=game_id, odds_event_id=event_id)
+            except Exception as e:
+                logger.info("props_resolve_failed", extra={"game_id": game_id})
+                return JsonResponse({"error": "odds_event_not_found"}, status=404)
+
+        try:
+            event_payload = fetch_event_player_props(resolved, markets_csv)
+        except Exception as e:
+            logger.info("props_fetch_failed", extra={"game_id": game_id})
+            return JsonResponse({"error": "fetch_failed"}, status=502)
+
+        markets = parse_props_response(event_payload, markets_csv)
+        if not markets:
+            return JsonResponse({
+                "game_id": game_id,
+                "markets": markets_csv,
+                "note": "prizepicks_unavailable",
+            }, status=204)
+
+        resp = {
+            "game_id": game_id,
+            "odds_event_id": resolved,
+            "home_team": game.get('home_team'),
+            "away_team": game.get('away_team'),
+            "kickoff_utc": game.get('kickoff'),
+            "markets": markets,
+            "source": "api"
+        }
+        return JsonResponse(resp)
+    except Exception as e:
+        logger.error(f"API fallback failed for {game_id}: {e}")
+        return JsonResponse({"error": "fetch_failed"}, status=502)
