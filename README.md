@@ -1,248 +1,265 @@
-# SecretBox - NFL Analytics & Prediction Platform
+# 🏈 SecretBox NFL Prop Prediction System
 
-A comprehensive Django web application for NFL data analysis, player statistics tracking, and predictive modeling for the 2025 NFL season.
+A comprehensive NFL player prop prediction system using machine learning, Next Gen Stats, and real-time data from `nflreadpy`.
 
-## 🏈 Overview
+## 🚀 Quick Start - Weekly Update Commands
 
-SecretBox is a sophisticated NFL analytics platform that provides:
-- Real-time NFL game schedules and results
-- Detailed player and team statistics
-- Machine learning-powered predictions for player props and game outcomes
-- Interactive web interface for exploring data and predictions
-- Caching system for efficient data management
+### **Step 1: Update Player Stats (Run Every Tuesday)**
+```bash
+# Update player stats for current season (2025)
+python3 manage.py populate_player_stats --seasons 2025
 
-## ✨ Features
-
-### Core Functionality
-- **Game Tracking**: View NFL games by week with detailed matchups
-- **Player Analytics**: Comprehensive player statistics including passing, rushing, and receiving stats
-- **Team Statistics**: Offensive and defensive team performance metrics
-- **Predictive Modeling**: ML-powered predictions for player props and game outcomes
-- **User Authentication**: Secure login/signup system
-- **Data Caching**: Efficient caching system using Parquet files
-
-### Data Sources
-- **nflreadpy**: Primary data source for NFL statistics and play-by-play data
-- **Real-time Updates**: Automatic data refresh capabilities
-- **Historical Data**: Support for 2025 NFL season data
-
-## 🏗️ Architecture
-
-### Backend (Django)
-- **Models**: Comprehensive data models for teams, players, games, and statistics
-- **Controllers**: Clean separation of business logic in controller modules
-- **Services**: NFL data integration and caching services
-- **Management Commands**: Data seeding and refresh utilities
-
-### Frontend
-- **Templates**: Django templating with modern HTML/CSS
-- **Responsive Design**: Mobile-friendly interface
-- **Interactive Elements**: Dynamic week selection and game navigation
-
-### Data Layer
-- **SQLite Database**: Local development database
-- **Parquet Caching**: Efficient data storage and retrieval
-- **Pandas/Polars**: Data processing and manipulation
-
-## 📊 Data Models
-
-### Core Entities
-- **Team**: NFL team information with colors and metadata
-- **Player**: Player details including position, team, and physical attributes
-- **Game**: Game schedules, scores, and completion status
-- **PlayerStats**: Weekly player performance statistics
-- **TeamStats**: Weekly team performance metrics
-- **Prediction**: ML model predictions for player props
-- **GamePrediction**: Game outcome predictions
-- **CachedData**: Data caching for API efficiency
-
-### Statistics Tracked
-- **Passing**: Attempts, completions, yards, TDs, interceptions, rating
-- **Rushing**: Attempts, yards, TDs
-- **Receiving**: Targets, receptions, yards, TDs
-- **Advanced**: Air yards, YAC, target share, snap share
-- **Team**: Offensive/defensive metrics, EPA, success rate
-
-## 🚀 Getting Started
-
-### Prerequisites
-- Python 3.8+
-- pip (Python package manager)
-
-### Installation
-
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd secretbox
-   ```
-
-2. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Run database migrations**
-   ```bash
-   python manage.py migrate
-   ```
-
-4. **Create demo data**
-   ```bash
-   python manage.py seed_demo
-   ```
-
-5. **Start the development server**
-   ```bash
-   python manage.py runserver
-   ```
-
-6. **Access the application**
-   - Open your browser to `http://127.0.0.1:8000/`
-   - Login with demo credentials: `demo` / `demo123`
-
-### Management Commands
-
-- **Seed Demo Data**: `python manage.py seed_demo`
-- **Refresh Week Data**: `python manage.py refresh_week --week <week_number>`
-
-## 🎯 Key Features in Detail
-
-### Week View
-- Browse games by week (1-18)
-- View game matchups with team information
-- Access starting quarterback statistics
-- Previous week performance data
-
-### Game Detail
-- Individual game information
-- Team matchup details
-- Game timing and status
-
-### Data Caching
-- Automatic caching of NFL data to Parquet files
-- Efficient data retrieval and storage
-- Configurable cache refresh options
-
-### Predictive Analytics
-- Machine learning models for player prop predictions
-- Game outcome probability calculations
-- Confidence intervals and edge calculations
-
-## 🛠️ Technical Stack
-
-### Backend
-- **Django 5.0.8**: Web framework
-- **SQLite**: Database
-- **Pandas 2.2.2**: Data manipulation
-- **Polars 1.0.0**: High-performance data processing
-- **nflreadpy 0.1.0**: NFL data API
-
-### Data Science
-- **NumPy 1.26.4**: Numerical computing
-- **Scikit-learn 1.4.2**: Machine learning
-- **Joblib 1.4.2**: Model persistence
-
-### Frontend
-- **Django Templates**: Server-side rendering
-- **Tailwind CSS**: Styling (referenced in templates)
-- **Responsive Design**: Mobile-first approach
-
-## 📁 Project Structure
-
-```
-secretbox/
-├── core/                    # Main Django app
-│   ├── controllers/         # Business logic controllers
-│   │   ├── auth.py         # Authentication logic
-│   │   └── pages.py        # Page controllers
-│   ├── management/         # Django management commands
-│   │   └── commands/       # Custom commands
-│   ├── templates/          # HTML templates
-│   │   ├── auth/           # Authentication templates
-│   │   └── pages/          # Page templates
-│   ├── models.py           # Database models
-│   └── urls.py             # URL routing
-├── services/               # External service integrations
-│   └── nfl.py             # NFL data service
-├── cache/                  # Data cache directory
-├── secretbox/             # Django project settings
-└── requirements.txt       # Python dependencies
+# This command will:
+# - Fetch latest player stats from nflreadpy
+# - Include Next Gen Stats (passing, receiving, rushing intelligence)
+# - Update PlayerStats table with new data
+# - Handle player name mapping automatically
 ```
 
-## 🔧 Configuration
+### **Step 2: Update Team Defense Stats (Run Every Tuesday)**
+```bash
+# Update team defensive rankings and stats
+python3 manage.py populate_team_defense --seasons 2025
 
-### Environment Variables
-- `NFL_SEASON`: Current NFL season (default: 2025)
-- `CACHE_DIR`: Cache directory path
-- `USE_DB_CACHE`: Enable database caching
+# This command will:
+# - Fetch latest team defensive stats
+# - Calculate defensive rankings (passing, rushing, receiving)
+# - Update TeamDefense table for opponent analysis
+```
 
-### Settings
-- Debug mode enabled for development
-- SQLite database for local development
-- Static files configuration
-- Authentication settings
+### **Step 3: Update Team Offense Stats (Run Every Tuesday)**
+```bash
+# Update team offensive rankings and stats
+python3 manage.py populate_team_offense --seasons 2025
 
-## 📈 Data Flow
+# This command will:
+# - Fetch latest team offensive stats
+# - Calculate offensive rankings and EPA
+# - Update TeamOffense table for team strength analysis
+```
 
-1. **Data Ingestion**: NFL data fetched via nflreadpy API
-2. **Caching**: Data stored in Parquet files for efficiency
-3. **Processing**: Data processed with Pandas/Polars
-4. **Storage**: Processed data stored in SQLite database
-5. **Presentation**: Data displayed through Django templates
-6. **Predictions**: ML models generate predictions for props and outcomes
+### **Step 4: Refresh Prop Lines (Run Every Wednesday)**
+```bash
+# Get latest prop lines from PrizePicks API
+python3 manage.py refresh_player_props
 
-## 🎮 Usage
+# This command will:
+# - Fetch current week's prop lines
+# - Update PlayerProp table with new odds
+# - Handle new players and markets automatically
+```
 
-### Landing Page
-- View current week's games
-- Navigate to specific weeks
-- Access game details
+### **Step 5: Generate Predictions (Run Every Wednesday)**
+```bash
+# Generate ML predictions for all active props
+python3 manage.py generate_predictions
 
-### Week View
-- Browse all games for a specific week
-- View starting quarterback statistics
-- Access previous week performance data
+# This command will:
+# - Train models on latest 2025 data
+# - Use all 75 features including Next Gen Stats
+# - Generate over/under probabilities
+# - Create Prediction records for web interface
+```
 
-### Game Detail
-- Detailed game information
-- Team matchup analysis
-- Game timing and status
+## 📊 Complete Weekly Workflow
 
-## 🔮 Future Enhancements
+### **Tuesday (Data Update Day)**
+```bash
+# 1. Update all player performance data
+python3 manage.py populate_player_stats --seasons 2025
 
-- Real-time data updates
-- Advanced ML model improvements
-- User prediction tracking
-- Social features and leaderboards
-- Mobile app development
-- API endpoints for external integrations
+# 2. Update team defensive strength
+python3 manage.py populate_team_defense --seasons 2025
 
-## 🤝 Contributing
+# 3. Update team offensive strength  
+python3 manage.py populate_team_offense --seasons 2025
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+# 4. Check data quality
+python3 manage.py shell -c "
+from core.models import PlayerStats, TeamDefense, TeamOffense
+print(f'PlayerStats: {PlayerStats.objects.filter(season=2025).count()}')
+print(f'TeamDefense: {TeamDefense.objects.filter(season=2025).count()}')
+print(f'TeamOffense: {TeamOffense.objects.filter(season=2025).count()}')
+"
+```
 
-## 📄 License
+### **Wednesday (Prediction Day)**
+```bash
+# 1. Get latest prop lines
+python3 manage.py refresh_player_props
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+# 2. Generate predictions
+python3 manage.py generate_predictions
 
-## 🙏 Acknowledgments
+# 3. Check prediction quality
+python3 manage.py shell -c "
+from core.models import Prediction
+recent = Prediction.objects.order_by('-created_at')[:5]
+for p in recent:
+    print(f'{p.player} - {p.prop_type}: {p.over_probability:.1f}% | {p.under_probability:.1f}%')
+"
+```
 
-- **nflreadpy**: For providing comprehensive NFL data
-- **Django**: For the robust web framework
-- **Pandas/Polars**: For efficient data processing
-- **NFL**: For the amazing sport and data
+## 🔧 Model Features (75 Total)
+
+### **1. Basic Player Stats (11 features)**
+- Passing: attempts, completions, yards, TDs
+- Rushing: attempts, yards, TDs
+- Receiving: targets, receptions, yards, TDs
+
+### **2. Rolling Averages (11 features)**
+- 3-game averages for all basic stats
+- Advanced metrics: air yards, YAC, target share
+
+### **3. Season Averages (11 features)**
+- Season-long performance trends
+- Cumulative stats and averages
+
+### **4. Game Context (7 features)**
+- Week number, season, early/late season flags
+- Season totals and timing factors
+
+### **5. Opponent Defense (10 features)**
+- Defensive rankings (passing, rushing, receiving)
+- Yards allowed per game
+- Prop-specific defensive adjustments
+
+### **6. Team Offense (10 features)**
+- Team offensive production and rankings
+- EPA (Expected Points Added)
+- Offensive efficiency metrics
+
+### **7. Next Gen Stats (15 features)**
+- **Passing Intelligence**: Time to throw, completion % above expectation, aggressiveness
+- **Receiving Intelligence**: Separation at catch, YAC above expectation, cushion
+- **Rushing Intelligence**: Efficiency, yards over expected, time to line of scrimmage
+
+## 🛠️ Maintenance Commands
+
+### **Fix Player Mappings**
+```bash
+# Fix player name inconsistencies between nflreadpy and PrizePicks
+python3 manage.py fix_all_player_mappings
+
+# Fix specific player team assignments
+python3 manage.py fix_all_player_teams
+
+# Add missing players manually
+python3 manage.py add_missing_players
+```
+
+### **Data Quality Checks**
+```bash
+# Check for players with missing team assignments
+python3 manage.py shell -c "
+from core.models import Player
+unknown = Player.objects.filter(team__team_abbr='Unknown')
+print(f'Players with unknown teams: {unknown.count()}')
+for p in unknown[:10]:
+    print(f'  {p.player_name} - {p.position}')
+"
+
+# Check prediction quality
+python3 manage.py shell -c "
+from core.models import Prediction
+total = Prediction.objects.count()
+high_conf = Prediction.objects.filter(over_probability__gt=70).count()
+print(f'Total predictions: {total}')
+print(f'High confidence over (>70%): {high_conf}')
+"
+```
+
+### **Database Management**
+```bash
+# Run migrations if needed
+python3 manage.py migrate
+
+# Create superuser (first time only)
+python3 manage.py createsuperuser
+
+# Start development server
+python3 manage.py runserver
+```
+
+## 📈 Understanding Predictions
+
+### **Probability Interpretation**
+- **>70% Over**: Strong confidence in over hitting
+- **60-70% Over**: Good confidence in over
+- **50-60% Over**: Slight lean to over
+- **40-50% Under**: Slight lean to under
+- **30-40% Under**: Good confidence in under
+- **<30% Under**: Strong confidence in under hitting
+
+### **Edge Calculation**
+- **Positive Edge**: Model predicts higher than line (favor over)
+- **Negative Edge**: Model predicts lower than line (favor under)
+- **Edge > 5**: Strong value play
+- **Edge > 2**: Good value play
+
+## 🚨 Troubleshooting
+
+### **Common Issues**
+
+1. **"No 2025 PlayerStats found"**
+   ```bash
+   python3 manage.py populate_player_stats --seasons 2025
+   ```
+
+2. **"Player not found" errors**
+   ```bash
+   python3 manage.py fix_all_player_mappings
+   ```
+
+3. **"Game not found" errors**
+   ```bash
+   python3 manage.py populate_games --seasons 2025
+   ```
+
+4. **Low prediction quality**
+   ```bash
+   # Check if Next Gen Stats are populated
+   python3 manage.py shell -c "
+   from core.models import PlayerStats
+   ngs = PlayerStats.objects.filter(season=2025, avg_time_to_throw__isnull=False).count()
+   print(f'Records with Next Gen Stats: {ngs}')
+   "
+   ```
+
+### **Data Validation**
+```bash
+# Check all data sources
+python3 manage.py shell -c "
+from core.models import *
+print('=== DATA SUMMARY ===')
+print(f'Players: {Player.objects.count()}')
+print(f'Teams: {Team.objects.count()}')
+print(f'Games: {Game.objects.count()}')
+print(f'PlayerStats (2025): {PlayerStats.objects.filter(season=2025).count()}')
+print(f'TeamDefense (2025): {TeamDefense.objects.filter(season=2025).count()}')
+print(f'TeamOffense (2025): {TeamOffense.objects.filter(season=2025).count()}')
+print(f'PlayerProps: {PlayerProp.objects.filter(is_active=True).count()}')
+print(f'Predictions: {Prediction.objects.count()}')
+"
+```
+
+## 📝 Notes
+
+- **Data Sources**: All data comes from `nflreadpy` (official NFL data)
+- **Model Type**: Simple statistical model optimized for limited data
+- **Update Frequency**: Weekly (Tuesday for data, Wednesday for predictions)
+- **Season Focus**: Currently optimized for 2025 season only
+- **Next Gen Stats**: Integrated for advanced player intelligence
+
+## 🎯 Success Metrics
+
+- **Prediction Accuracy**: Track over/under hit rates
+- **Edge Performance**: Monitor value play success
+- **Data Quality**: Ensure all players have correct team assignments
+- **Model Confidence**: Aim for reasonable probability distributions (not all 100%)
 
 ---
 
-**SecretBox** - Where NFL analytics meets machine learning. Built with ❤️ for football fans and data enthusiasts.
-
-------
-
-command to refresh the lines
-
-python3 manage.py refresh_player_props
+**Last Updated**: Week 3, 2025 Season
+**Model Version**: 4.0_simple with Next Gen Stats
+**Total Features**: 75 (including 15 Next Gen Stats)

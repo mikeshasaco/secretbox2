@@ -1,5 +1,5 @@
 from django.core.management.base import BaseCommand
-from core.models import PropLineHistory, Prediction, Player, Game, PlayerStats, Team
+from core.models import PropLineHistory, Prediction, Player, Game, PlayerStats, Team, PlayerProp
 from django.utils import timezone
 from django.db.models import Avg, Q
 import numpy as np
@@ -53,16 +53,26 @@ class Command(BaseCommand):
             return
 
         # Generate predictions for current prop lines
-        prop_lines = PropLineHistory.objects.values('player_name', 'market_key', 'game_id', 'line_value').distinct()
+        prop_lines = PlayerProp.objects.filter(is_active=True).values('player_name', 'market_display', 'event', 'over_point', 'under_point')
         self.stdout.write(f"Generating predictions for {len(prop_lines)} current prop lines")
 
         predictions_created = 0
 
         for prop in prop_lines:
             player_name = prop['player_name']
-            market_key = prop['market_key']
-            game_id = prop['game_id']
-            line_value = prop['line_value']
+            market_display = prop['market_display']
+            event = prop['event']
+            over_line = prop['over_point']
+            under_line = prop['under_point']
+            
+            # Convert market_display to market_key format
+            market_key = market_display.lower().replace(' ', '_').replace('yards', 'yds').replace('attempts', 'attempts')
+            if 'pass' in market_display.lower():
+                market_key = 'player_pass_yds' if 'yards' in market_display.lower() else 'player_pass_attempts'
+            elif 'rush' in market_display.lower():
+                market_key = 'player_rush_yds' if 'yards' in market_display.lower() else 'player_rush_attempts'
+            elif 'reception' in market_display.lower():
+                market_key = 'player_reception_yds' if 'yards' in market_display.lower() else 'player_receptions'
 
             # Skip if we don't have a trained model for this prop type
             if market_key not in trained_models:
@@ -71,7 +81,15 @@ class Command(BaseCommand):
             # Get or create player
             try:
                 player = self.get_or_create_player(player_name)
-                game = self.get_or_create_game(game_id)
+                # Use an existing game for predictions (simplified approach)
+                from core.models import Game
+                game = Game.objects.filter(season=2025, week=3).first()
+                if not game:
+                    # If no 2025 week 3 game exists, use any existing game
+                    game = Game.objects.first()
+                if not game:
+                    self.stdout.write(f"No games found in database")
+                    continue
             except Exception as e:
                 self.stdout.write(f"Could not get player/game for {player_name}: {e}")
                 continue
@@ -86,6 +104,9 @@ class Command(BaseCommand):
                 if mean_pred is None or sigma is None:
                     self.stdout.write(f"Could not generate prediction for {player_name} {market_key}")
                     continue
+                
+                # Use over_line as the line value for prediction
+                line_value = over_line
                 
                 # Monte Carlo simulation
                 over_prob, under_prob, confidence_interval = self.monte_carlo_simulation(
