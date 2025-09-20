@@ -113,7 +113,11 @@ def game_props(request, game_id: str):
                 )
             except Exception as e:
                 logger.info("props_resolve_failed", extra={"game_id": game_id})
-                return JsonResponse({"error": "odds_event_not_found"}, status=404)
+                return JsonResponse({
+                    "game_id": game_id,
+                    "markets": markets_csv,
+                    "note": "prizepicks_unavailable",
+                }, status=204)
         
         # Get requested markets
         requested_markets = [m.strip() for m in markets_csv.split(',') if m.strip()]
@@ -124,6 +128,26 @@ def game_props(request, game_id: str):
             market_key__in=requested_markets,
             is_active=True
         ).order_by('market_key', 'player_name')
+        
+        # Get ML predictions for these props
+        from core.models import Prediction
+        predictions = {}
+        if props.exists():
+            # Get predictions for the same players and markets
+            preds = Prediction.objects.filter(
+                game__game_id=game_id,
+                prop_type__in=requested_markets
+            ).select_related('player')
+            
+            for pred in preds:
+                key = f"{pred.player.player_name}_{pred.prop_type}"
+                predictions[key] = {
+                    'over_probability': pred.over_probability,
+                    'under_probability': pred.under_probability,
+                    'predicted_value': pred.predicted_value,
+                    'edge': pred.edge,
+                    'model_version': pred.model_version
+                }
         
         if not props.exists():
             # No data in database, try API as fallback
@@ -139,9 +163,17 @@ def game_props(request, game_id: str):
                     'lines': []
                 }
             
+            # Get player team information
+            from core.models import Player
+            player = Player.objects.filter(player_name=prop.player_name).first()
+            team_abbr = player.team_abbr if player else "UNK"
+            team_name = player.team_name if player else "Unknown Team"
+            
             # Build line data
             line = {
                 'player': prop.player_name,
+                'team_abbr': team_abbr,
+                'team_name': team_name,
                 'over': {
                     'odds': prop.over_odds,
                     'point': prop.over_point
@@ -151,6 +183,18 @@ def game_props(request, game_id: str):
                     'point': prop.under_point
                 } if prop.under_odds is not None and prop.under_point is not None else None
             }
+            
+            # Add ML predictions if available
+            pred_key = f"{prop.player_name}_{prop.market_key}"
+            if pred_key in predictions:
+                pred = predictions[pred_key]
+                line['ml_prediction'] = {
+                    'over_probability': pred['over_probability'],
+                    'under_probability': pred['under_probability'],
+                    'predicted_value': pred['predicted_value'],
+                    'edge': pred['edge'],
+                    'model_version': pred['model_version']
+                }
             market_groups[prop.market_key]['lines'].append(line)
         
         markets = list(market_groups.values())

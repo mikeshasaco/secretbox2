@@ -6,7 +6,7 @@ from django.contrib import messages
 from .models import (
     Team, Player, Game, PlayerStats, TeamStats, Prediction, GamePrediction,
     CachedData, PropLine, PropProjection, OddsEventMap, OddsEvent, 
-    PlayerProp, PropLineHistory, DataRefreshLog
+    PlayerProp, PropLineHistory, PropGrade, DataRefreshLog
 )
 from .management.commands.refresh_player_props import Command as RefreshCommand
 
@@ -19,9 +19,19 @@ class TeamAdmin(admin.ModelAdmin):
 
 @admin.register(Player)
 class PlayerAdmin(admin.ModelAdmin):
-    list_display = ['player_name', 'position', 'team', 'jersey_number']
+    list_display = ['player_name', 'position', 'team_abbr', 'team_name', 'jersey_number']
     list_filter = ['position', 'team']
     search_fields = ['player_name']
+    
+    def team_abbr(self, obj):
+        return obj.team_abbr
+    team_abbr.short_description = 'Team'
+    team_abbr.admin_order_field = 'team__team_abbr'
+    
+    def team_name(self, obj):
+        return obj.team_name
+    team_name.short_description = 'Team Name'
+    team_name.admin_order_field = 'team__team_name'
 
 
 @admin.register(Game)
@@ -73,10 +83,20 @@ class PlayerPropAdmin(admin.ModelAdmin):
 
 @admin.register(PropLineHistory)
 class PropLineHistoryAdmin(admin.ModelAdmin):
-    list_display = ['prop', 'over_point', 'under_point', 'timestamp']
-    list_filter = ['timestamp', 'prop__market_key']
-    search_fields = ['prop__player_name']
-    readonly_fields = ['timestamp']
+    list_display = ['player_name', 'market_key', 'line_value', 'over_odds', 'under_odds', 'captured_at']
+    list_filter = ['captured_at', 'market_key', 'source']
+    search_fields = ['player_name', 'game_id', 'market_key']
+    readonly_fields = ['captured_at']
+    ordering = ['-captured_at']
+
+
+@admin.register(PropGrade)
+class PropGradeAdmin(admin.ModelAdmin):
+    list_display = ['proplinehistory', 'label_value', 'outcome', 'graded_at']
+    list_filter = ['outcome', 'graded_at']
+    search_fields = ['proplinehistory__player_name', 'proplinehistory__market_key']
+    readonly_fields = ['graded_at']
+    ordering = ['-graded_at']
 
 
 @admin.register(DataRefreshLog)

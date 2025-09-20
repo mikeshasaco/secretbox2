@@ -101,11 +101,24 @@
           <th class="py-2 pr-4">Under (odds/line)</th>
           <th class="py-2 pr-4">Market</th>
           <th class="py-2 pr-4">Last Update</th>
+          <th class="py-2 pr-4">Probability</th>
         </tr>
       </thead>
       <tbody id="pp-tbody"></tbody>
     </table>
   </div>
+  <style>
+    .probability-bar {
+      transition: all 0.3s ease;
+    }
+    .probability-bar:hover {
+      transform: scale(1.05);
+    }
+    .probability-text {
+      font-size: 0.75rem;
+      line-height: 1;
+    }
+  </style>
   <script>
     (function(){
       const statusEl = document.getElementById('pp-status');
@@ -149,7 +162,7 @@
         }
 
         try {
-          const res = await fetch(`/game/{{ game.game_id }}/props?markets=${encodeURIComponent(markets)}`);
+          const res = await fetch(`/game/{{ game.game_id }}/props/?markets=${encodeURIComponent(markets)}`);
           if (res.status === 204) {
             statusEl.textContent = 'PrizePicks not available for this game yet.';
             return;
@@ -194,16 +207,108 @@
             
             // Player lines for this market
             market.lines.forEach(line => {
-              const over = line.over ? `${line.over.odds ?? ''}/${line.over.point ?? ''}` : '';
-              const under = line.under ? `${line.under.odds ?? ''}/${line.under.point ?? ''}` : '';
+              // Convert American odds to percentage
+              const oddsToPercent = (odds) => {
+                if (!odds) return 0;
+                const num = parseInt(odds);
+                if (num > 0) {
+                  return (100 / (num + 100) * 100);
+                } else {
+                  return (Math.abs(num) / (Math.abs(num) + 100) * 100);
+                }
+              };
+
+              const createProbabilityBar = (overOdds, underOdds, mlPrediction = null) => {
+                // Use ML predictions if available, otherwise fall back to raw odds
+                let overPercent, underPercent, source;
+                
+                if (mlPrediction && mlPrediction.over_probability !== undefined) {
+                  // Use ML predictions
+                  overPercent = mlPrediction.over_probability * 100;
+                  underPercent = mlPrediction.under_probability * 100;
+                  source = 'ML';
+                } else if (overOdds && underOdds) {
+                  // Fall back to raw odds
+                  overPercent = oddsToPercent(overOdds);
+                  underPercent = oddsToPercent(underOdds);
+                  source = 'Odds';
+                } else {
+                  return '<div class="text-gray-400 text-xs">N/A</div>';
+                }
+                
+                // If both probabilities are the same, it means it's a 50/50 split
+                if (Math.abs(overPercent - underPercent) < 0.1) {
+                  return `
+                    <div class="w-28 h-5 bg-gray-200 rounded-full overflow-hidden flex shadow-inner probability-bar">
+                      <div class="bg-gradient-to-r from-green-400 to-green-600 h-full flex items-center justify-center text-white text-xs font-medium" 
+                           style="width: 50%">
+                        O
+                      </div>
+                      <div class="bg-gradient-to-r from-red-400 to-red-600 h-full flex items-center justify-center text-white text-xs font-medium" 
+                           style="width: 50%">
+                        U
+                      </div>
+                    </div>
+                    <div class="probability-text text-gray-600 mt-1 text-center">
+                      <span class="text-green-600 font-medium">${overPercent.toFixed(1)}%</span>
+                      <span class="text-gray-400 mx-1">|</span>
+                      <span class="text-red-600 font-medium">${underPercent.toFixed(1)}%</span>
+                      <div class="text-xs text-blue-600 font-medium">${source}</div>
+                    </div>
+                  `;
+                }
+                
+                // Normalize to 100% total
+                const total = overPercent + underPercent;
+                const normalizedOver = (overPercent / total) * 100;
+                const normalizedUnder = (underPercent / total) * 100;
+                
+                return `
+                  <div class="w-28 h-5 bg-gray-200 rounded-full overflow-hidden flex shadow-inner probability-bar">
+                    <div class="bg-gradient-to-r from-green-400 to-green-600 h-full flex items-center justify-center text-white text-xs font-medium" 
+                         style="width: ${normalizedOver}%">
+                      ${normalizedOver > 15 ? 'O' : ''}
+                    </div>
+                    <div class="bg-gradient-to-r from-red-400 to-red-600 h-full flex items-center justify-center text-white text-xs font-medium" 
+                         style="width: ${normalizedUnder}%">
+                      ${normalizedUnder > 15 ? 'U' : ''}
+                    </div>
+                  </div>
+                  <div class="probability-text text-gray-600 mt-1 text-center">
+                    <span class="text-green-600 font-medium">${overPercent.toFixed(1)}%</span>
+                    <span class="text-gray-400 mx-1">|</span>
+                    <span class="text-red-600 font-medium">${underPercent.toFixed(1)}%</span>
+                    <div class="text-xs text-blue-600 font-medium">${source}</div>
+                  </div>
+                `;
+              };
+              
+              const over = line.over ? `${line.over.odds}/${line.over.point ?? ''}` : '';
+              const under = line.under ? `${line.under.odds}/${line.under.point ?? ''}` : '';
+              const probabilityBar = createProbabilityBar(
+                line.over?.odds, 
+                line.under?.odds,
+                line.ml_prediction
+              );
+              
               const tr = document.createElement('tr');
               tr.className = 'border-b hover:bg-gray-50';
               tr.innerHTML = `
-                <td class="py-2 pr-4 pl-6">${line.player || ''}</td>
+                <td class="py-2 pr-4 pl-6">
+                  <div class="flex flex-col">
+                    <span class="font-medium">${line.player || ''}</span>
+                    <span class="text-xs text-gray-500">${line.team_abbr || 'UNK'} - ${line.team_name || 'Unknown Team'}</span>
+                  </div>
+                </td>
                 <td class="py-2 pr-4">${over}</td>
                 <td class="py-2 pr-4">${under}</td>
+                <td class="py-2 pr-4">${market.key || ''}</td>
                 <td class="py-2 pr-4">${market.last_update || ''}</td>
-                <td class="py-2 pr-4"></td>
+                <td class="py-2 pr-4">
+                  <div class="flex flex-col items-center">
+                    ${probabilityBar}
+                  </div>
+                </td>
               `;
               frag.appendChild(tr);
             });

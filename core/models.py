@@ -19,6 +19,98 @@ class Team(models.Model):
         ordering = ['team_abbr']
 
 
+class TeamDefense(models.Model):
+    """Team Defensive Statistics and Rankings"""
+    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='defense_stats')
+    season = models.IntegerField(validators=[MinValueValidator(2024), MaxValueValidator(2025)])
+    week = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(18)])
+    
+    # Passing Defense (what the team allows)
+    passing_attempts_allowed = models.FloatField(default=0)
+    passing_yards_allowed = models.FloatField(default=0)
+    passing_tds_allowed = models.FloatField(default=0)
+    passing_interceptions_forced = models.FloatField(default=0)
+    sacks_made = models.FloatField(default=0)
+    passing_epa_allowed = models.FloatField(default=0)
+    
+    # Rushing Defense
+    rushing_yards_allowed = models.FloatField(default=0)
+    rushing_tds_allowed = models.FloatField(default=0)
+    tackles_for_loss = models.FloatField(default=0)
+    rushing_epa_allowed = models.FloatField(default=0)
+    
+    # Receiving Defense
+    receiving_yards_allowed = models.FloatField(default=0)
+    receiving_tds_allowed = models.FloatField(default=0)
+    targets_allowed = models.FloatField(default=0)
+    receiving_epa_allowed = models.FloatField(default=0)
+    
+    # Defensive Rankings (1 = best defense, 32 = worst)
+    passing_defense_rank = models.IntegerField(null=True, blank=True)
+    rushing_defense_rank = models.IntegerField(null=True, blank=True)
+    receiving_defense_rank = models.IntegerField(null=True, blank=True)
+    overall_defense_rank = models.IntegerField(null=True, blank=True)
+    
+    # Season-to-date averages
+    avg_passing_yards_allowed = models.FloatField(default=0)
+    avg_rushing_yards_allowed = models.FloatField(default=0)
+    avg_receiving_yards_allowed = models.FloatField(default=0)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"{self.team.team_abbr} Defense - {self.season} Week {self.week}"
+    
+    class Meta:
+        unique_together = ['team', 'season', 'week']
+        ordering = ['season', 'week', 'team']
+
+
+class TeamOffense(models.Model):
+    """Team Offensive Statistics and Rankings"""
+    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='offense_stats')
+    season = models.IntegerField(validators=[MinValueValidator(2024), MaxValueValidator(2025)])
+    week = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(18)])
+    
+    # Passing Offense (what the team produces)
+    passing_attempts = models.FloatField(default=0)
+    passing_yards = models.FloatField(default=0)
+    passing_tds = models.FloatField(default=0)
+    passing_interceptions = models.FloatField(default=0)
+    sacks_taken = models.FloatField(default=0)
+    passing_epa = models.FloatField(default=0)
+    
+    # Rushing Offense
+    rushing_yards = models.FloatField(default=0)
+    rushing_tds = models.FloatField(default=0)
+    rushing_epa = models.FloatField(default=0)
+    
+    # Receiving Offense
+    receiving_yards = models.FloatField(default=0)
+    receiving_tds = models.FloatField(default=0)
+    targets = models.FloatField(default=0)
+    receiving_epa = models.FloatField(default=0)
+    
+    # Offensive Rankings (1 = best offense, 32 = worst)
+    passing_offense_rank = models.IntegerField(null=True, blank=True)
+    rushing_offense_rank = models.IntegerField(null=True, blank=True)
+    receiving_offense_rank = models.IntegerField(null=True, blank=True)
+    overall_offense_rank = models.IntegerField(null=True, blank=True)
+    
+    # Season-to-date averages
+    avg_passing_yards = models.FloatField(default=0)
+    avg_rushing_yards = models.FloatField(default=0)
+    avg_receiving_yards = models.FloatField(default=0)
+    
+    def __str__(self):
+        return f"{self.team.team_abbr} Offense - {self.season} Week {self.week}"
+    
+    class Meta:
+        ordering = ['team', 'season', 'week']
+        unique_together = ['team', 'season', 'week']
+
+
 class Player(models.Model):
     """NFL Players"""
     player_id = models.CharField(max_length=20, unique=True)
@@ -30,8 +122,22 @@ class Player(models.Model):
     weight = models.IntegerField(null=True, blank=True)
     age = models.IntegerField(null=True, blank=True)
     
+    @property
+    def team_name(self):
+        """Return the team name for easy display"""
+        if self.team:
+            return self.team.team_name
+        return "Unknown Team"
+    
+    @property
+    def team_abbr(self):
+        """Return the team abbreviation for easy display"""
+        if self.team:
+            return self.team.team_abbr
+        return "UNK"
+    
     def __str__(self):
-        return f"{self.player_name} ({self.position})"
+        return f"{self.player_name} ({self.position}) - {self.team_abbr}"
     
     class Meta:
         ordering = ['player_name']
@@ -53,6 +159,11 @@ class Game(models.Model):
     home_score = models.IntegerField(null=True, blank=True)
     away_score = models.IntegerField(null=True, blank=True)
     
+    # Kickoff times for proper grading
+    kickoff_utc = models.DateTimeField(null=True, blank=True, help_text="Game kickoff time in UTC")
+    kickoff_et = models.DateTimeField(null=True, blank=True, help_text="Game kickoff time in Eastern")
+    kickoff_local = models.DateTimeField(null=True, blank=True, help_text="Game kickoff time in local stadium time")
+    
     def __str__(self):
         return f"Week {self.week}: {self.away_team} @ {self.home_team}"
     
@@ -64,6 +175,7 @@ class Game(models.Model):
 class PlayerStats(models.Model):
     """Weekly player statistics"""
     player = models.ForeignKey(Player, on_delete=models.CASCADE)
+    player_name = models.CharField(max_length=100, blank=True, help_text="Player name for easy reference")
     game = models.ForeignKey(Game, on_delete=models.CASCADE)
     season = models.IntegerField(validators=[MinValueValidator(2025), MaxValueValidator(2025)])
     week = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(18)])
@@ -93,6 +205,27 @@ class PlayerStats(models.Model):
     adot = models.FloatField(null=True, blank=True)  # Average depth of target
     target_share = models.FloatField(null=True, blank=True)
     snap_share = models.FloatField(null=True, blank=True)
+    
+    # Next Gen Stats - Passing
+    avg_time_to_throw = models.FloatField(null=True, blank=True, help_text="Average time to throw in seconds")
+    avg_completed_air_yards = models.FloatField(null=True, blank=True, help_text="Average completed air yards")
+    avg_intended_air_yards = models.FloatField(null=True, blank=True, help_text="Average intended air yards")
+    avg_air_yards_differential = models.FloatField(null=True, blank=True, help_text="Air yards differential")
+    aggressiveness = models.FloatField(null=True, blank=True, help_text="Aggressiveness percentage")
+    completion_percentage_above_expectation = models.FloatField(null=True, blank=True, help_text="Completion % above expectation")
+    
+    # Next Gen Stats - Receiving
+    avg_cushion = models.FloatField(null=True, blank=True, help_text="Average cushion at snap")
+    avg_separation = models.FloatField(null=True, blank=True, help_text="Average separation at catch")
+    avg_expected_yac = models.FloatField(null=True, blank=True, help_text="Average expected YAC")
+    avg_yac_above_expectation = models.FloatField(null=True, blank=True, help_text="YAC above expectation")
+    
+    # Next Gen Stats - Rushing
+    efficiency = models.FloatField(null=True, blank=True, help_text="Rushing efficiency")
+    avg_time_to_los = models.FloatField(null=True, blank=True, help_text="Average time to line of scrimmage")
+    expected_rush_yards = models.FloatField(null=True, blank=True, help_text="Expected rush yards")
+    rush_yards_over_expected = models.FloatField(null=True, blank=True, help_text="Rush yards over expected")
+    rush_yards_over_expected_per_att = models.FloatField(null=True, blank=True, help_text="Rush yards over expected per attempt")
     
     def __str__(self):
         return f"{self.player} - Week {self.week} {self.season}"
@@ -278,19 +411,52 @@ class PlayerProp(models.Model):
 
 
 class PropLineHistory(models.Model):
-    """Tracks line changes over time for analysis"""
-    prop = models.ForeignKey(PlayerProp, on_delete=models.CASCADE, related_name='line_history')
-    over_odds = models.IntegerField(null=True, blank=True)
-    over_point = models.FloatField(null=True, blank=True)
-    under_odds = models.IntegerField(null=True, blank=True)
-    under_point = models.FloatField(null=True, blank=True)
-    timestamp = models.DateTimeField(auto_now_add=True)
+    """Historical tracking of prop line changes - PURE SNAPSHOT LOG"""
+    game_id = models.CharField(max_length=50, default='unknown')  # e.g., '2025_03_ATL_CAR'
+    player_name = models.CharField(max_length=100, default='unknown')  # e.g., 'Bryce Young'
+    market_key = models.CharField(max_length=50, default='unknown')  # e.g., 'player_pass_yds'
+    line_value = models.FloatField(default=0.0)  # The actual line (e.g., 250.5)
+    over_odds = models.IntegerField(null=True, blank=True)  # American odds
+    under_odds = models.IntegerField(null=True, blank=True)  # American odds
+    source = models.CharField(max_length=50, default='prizepicks')
+    captured_at = models.DateTimeField(auto_now_add=True)
     
-    def __str__(self):
-        return f"{self.prop.player_name} {self.timestamp.strftime('%m/%d %H:%M')}"
+    # CLV (Closing Line Value) tracking
+    is_opening_line = models.BooleanField(default=False, help_text="Is this the opening line?")
+    is_closing_line = models.BooleanField(default=False, help_text="Is this the closing line?")
+    is_our_capture = models.BooleanField(default=False, help_text="Is this our capture time?")
+    clv_vs_opening = models.FloatField(null=True, blank=True, help_text="CLV vs opening line")
+    clv_vs_closing = models.FloatField(null=True, blank=True, help_text="CLV vs closing line")
     
     class Meta:
-        ordering = ['-timestamp']
+        ordering = ['-captured_at']
+        indexes = [
+            models.Index(fields=['game_id', 'player_name', 'market_key']),
+            models.Index(fields=['captured_at']),
+        ]
+    
+    def __str__(self):
+        return f"{self.player_name} {self.market_key} {self.line_value} @ {self.captured_at.strftime('%m/%d %H:%M')}"
+
+
+class PropGrade(models.Model):
+    """Graded results for prop lines - references the snapshot that was graded"""
+    proplinehistory = models.ForeignKey(PropLineHistory, on_delete=models.CASCADE, related_name='grades')
+    label_value = models.FloatField()  # Actual result (e.g., 275.0)
+    outcome = models.CharField(max_length=10, choices=[
+        ('over', 'Over'),
+        ('under', 'Under'),
+        ('push', 'Push'),
+        ('void', 'Void')
+    ])
+    graded_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        unique_together = ['proplinehistory']
+        ordering = ['-graded_at']
+    
+    def __str__(self):
+        return f"{self.proplinehistory.player_name} {self.outcome} ({self.label_value} vs {self.proplinehistory.line_value})"
 
 
 class DataRefreshLog(models.Model):
@@ -340,3 +506,26 @@ class PropProjection(models.Model):
     class Meta:
         ordering = ['-created_at']
         unique_together = ['prop_line', 'model_version']
+
+
+class PlayerMapping(models.Model):
+    """Maps nflreadpy player names to PrizePicks player names"""
+    nflreadpy_name = models.CharField(max_length=100, unique=True)  # e.g., "S.Darnold"
+    prizepicks_name = models.CharField(max_length=100)  # e.g., "Sam Darnold"
+    player_id = models.CharField(max_length=50, unique=True)  # e.g., "sam_darnold"
+    position = models.CharField(max_length=10)  # e.g., "QB"
+    current_team = models.CharField(max_length=10)  # e.g., "SEA"
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"{self.nflreadpy_name} → {self.prizepicks_name} ({self.current_team})"
+    
+    class Meta:
+        ordering = ['nflreadpy_name']
+        indexes = [
+            models.Index(fields=['nflreadpy_name']),
+            models.Index(fields=['prizepicks_name']),
+            models.Index(fields=['player_id']),
+        ]
